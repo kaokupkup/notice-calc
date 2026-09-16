@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>นับวันบอกกล่าวเลิกจ้าง</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --line: #2a3a4f;
+      --text: #e8eef6;
+      --muted: #9aa8b8;
+      --accent: #3d9cf0;
+      --ok: #3ecf8e;
+      --warn: #f0b429;
+      --danger: #f07178;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Sarabun", "Noto Sans Thai", system-ui, sans-serif;
+      background: #0f1419;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px 14px 40px;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.3rem; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 6px; }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #101826;
+      color: var(--text);
+      font: inherit;
+    }
+    button {
+      margin-top: 14px;
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px;
+      font: inherit;
+      font-weight: 700;
+      background: var(--accent);
+      color: #071018;
+      cursor: pointer;
+    }
+    .row { margin: 0 0 10px; line-height: 1.5; }
+    .k { color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 600; }
+    .ok { color: var(--ok); font-weight: 700; }
+    .danger { color: var(--danger); font-weight: 700; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>นับวันบอกกล่าวเลิกจ้าง</h1>
+    <p class="sub">เครื่องคิดวันบอกกล่าวตามมาตรา 17 · ไม่ใช่คำปรึกษาทางกฎหมาย</p>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>วันเริ่มงาน</label>
+          <input type="date" id="startDate" value="2026-06-05" />
+        </div>
+        <div>
+          <label>จ่ายเงินเดือนทุกวันที่</label>
+          <input type="number" id="payDay" min="1" max="28" value="10" />
+        </div>
+        <div>
+          <label>วันนี้ (วันที่เปิดมาดู)</label>
+          <input type="date" id="asOf" />
+        </div>
+        <div>
+          <label>นับกี่วันก่อนครบค่าชดเชย</label>
+          <input type="number" id="probationDays" min="1" value="119" />
+        </div>
+      </div>
+      <button type="button" id="calcBtn">คำนวณ</button>
+    </div>
+
+    <div id="result" class="card hidden" style="margin-top:14px;"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function parseISO(v) {
+      const [y, m, d] = v.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+    function fmt(d) {
+      return d.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+    }
+    function addDays(d, n) {
+      const x = new Date(d);
+      x.setDate(x.getDate() + n);
+      return x;
+    }
+    function dayNumber(start, target) {
+      return Math.round((target - start) / 86400000) + 1;
+    }
+
+    function calc() {
+      const start = parseISO($("startDate").value);
+      const payDay = Number($("payDay").value);
+      const probation = Number($("probationDays").value);
+      const asOf = parseISO($("asOf").value);
+
+      const day119 = addDays(start, probation - 1);
+      const day120 = addDays(start, probation);
+      const currentDayNo = dayNumber(start, asOf);
+
+      let noticeDeadline, effectiveDate, missed;
+      if (asOf.getDate() <= payDay) {
+        missed = false;
+        noticeDeadline = new Date(asOf.getFullYear(), asOf.getMonth(), payDay);
+        effectiveDate = new Date(asOf.getFullYear(), asOf.getMonth() + 1, payDay);
+      } else {
+        missed = true;
+        noticeDeadline = new Date(asOf.getFullYear(), asOf.getMonth() + 1, payDay);
+        effectiveDate = new Date(asOf.getFullYear(), asOf.getMonth() + 2, payDay);
+      }
+
+      const sever = dayNumber(start, effectiveDate) >= 120;
+      const lastSafe = addDays(start, 118);
+
+      const rows = [];
+      for (let i = 0; i <= 3; i++) {
+        const notice = new Date(asOf.getFullYear(), asOf.getMonth() + i, payDay);
+        const effect = new Date(notice.getFullYear(), notice.getMonth() + 1, payDay);
+        rows.push({ notice, effect, n: dayNumber(start, effect) });
+      }
+
+      const box = $("result");
+      box.classList.remove("hidden");
+      box.innerHTML = `
+        <div class="row"><span class="k">วันนี้เป็นวันที่ทำงานที่</span> ${currentDayNo}</div>
+        <div class="row"><span class="k">ครบ ${probation} วัน</span> ${fmt(day119)}</div>
+        <div class="row"><span class="k">ครบ 120 วัน (มีค่าชดเชย)</span> ${fmt(day120)}</div>
+        <div class="row"><span class="k">บอกกล่าวทันภายใน</span> ${fmt(noticeDeadline)}</div>
+        <div class="row"><span class="k">มีผลให้ออกวันที่</span> ${fmt(effectiveDate)}
+          ${sever ? '<span class="danger"> มีค่าชดเชย</span>' : '<span class="ok"> ไม่มีค่าชดเชย</span>'}
+        </div>
+        <div class="row"><span class="k">ถ้าไม่อยากจ่ายค่าชดเชย วันสุดท้ายไม่เกิน</span> ${fmt(lastSafe)}</div>
+        ${missed ? '<div class="row danger">วันนี้เลยวันจ่ายของเดือนนี้แล้ว</div>' : ''}
+        <table>
+          <thead><tr><th>บอกภายใน</th><th>ออกวันที่</th><th>วันที่ทำงานที่</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${fmt(r.notice)}</td>
+              <td>${fmt(r.effect)}</td>
+              <td>${r.n}${r.n >= 120 ? " (มีค่าชดเชย)" : ""}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    $("asOf").valueAsDate = new Date();
+    $("calcBtn").addEventListener("click", calc);
+    calc();
+  </script>
+</body>
+</html>
